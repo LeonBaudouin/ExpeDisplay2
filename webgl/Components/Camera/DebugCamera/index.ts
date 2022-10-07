@@ -6,10 +6,14 @@ import { WebGLAppContext } from '~~/webgl'
 export default class DebugCamera extends AbstractObject<WebGLAppContext, THREE.PerspectiveCamera> {
   public controls: OrbitControls
 
-  constructor(context: WebGLAppContext, { defaultPosition }: { defaultPosition: THREE.Vector3 }) {
+  constructor(
+    context: WebGLAppContext,
+    { defaultPosition, defaultRotation }: { defaultPosition: THREE.Vector3; defaultRotation: THREE.Euler }
+  ) {
     super(context)
-    this.object = new THREE.PerspectiveCamera(30.0, window.innerWidth / window.innerHeight, 0.1, 1000)
+    this.object = new THREE.PerspectiveCamera(26.6, window.innerWidth / window.innerHeight, 0.1, 1000)
     this.object.position.copy(defaultPosition)
+    this.object.rotation.copy(defaultRotation)
 
     this.controls = new OrbitControls(this.object, this.context.renderer.domElement)
     this.controls.enableDamping = true

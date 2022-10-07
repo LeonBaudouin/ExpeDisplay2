@@ -228,11 +228,11 @@ class UnrealBloomPass extends Pass {
     // // 1. Extract Bright Areas
 
     // this.context.state.inBloomPass = true
-    // this.context.globalUniforms.uBloom.value = 1
+    this.context.globalUniforms.uBloom.value = 1
     renderer.setRenderTarget(this.renderTargetBright)
     renderer.clear()
     renderer.render(this.scene, this.camera)
-    // this.context.globalUniforms.uBloom.value = 0
+    this.context.globalUniforms.uBloom.value = 0
     // this.context.state.inBloomPass = false
 
     // 2. Blur All the mips progressively

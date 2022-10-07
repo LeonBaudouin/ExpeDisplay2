@@ -1,6 +1,8 @@
 export default {
   gltf: {
     example: '/models/example.gltf',
+    face: '/output.glb',
+    scene: '/scene.glb',
   },
   textures: {
     example: {

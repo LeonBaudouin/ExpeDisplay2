@@ -1,5 +1,5 @@
 <template>
-  <div :style="{ '--vh': vh, display: $params.dom ? 'block' : 'none' }">
+  <div :style="{ '--vh': vh, display: showDom.value ? 'block' : 'none' }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
@@ -10,6 +10,7 @@
 <script setup lang="ts">
 const { $webgl, $tweakpane, $params } = useNuxtApp()
 
+const showDom = reactive({ value: $params.dom })
 const showTweakpane = ref(true)
 
 const vh = ref('0px')
@@ -23,6 +24,8 @@ useCleanup(() => {
     lineCount: 2,
     index: 0,
   })
+
+  $tweakpane.addInput(showDom, 'value', { label: 'DOM', index: 0 })
 
   const refreshButton = $tweakpane.addButton({ title: 'Refresh', index: 1 })
   refreshButton.on('click', () => $tweakpane.refresh())
@@ -55,6 +58,25 @@ useCleanup(() => {
 </script>
 
 <style lang="scss">
+@import '@/assets/styles/clash-display.css';
+@import '@/assets/styles/satoshi.css';
+
+:root {
+  // --color: rgb(200, 220, 240);
+  --color: #ffffff;
+  --bodyFont: 'Satoshi-variable';
+  --titleFont: 'ClashDisplay-variable';
+  --marginTop: 8px;
+  --marginHorizontal: 28px;
+  --marginBottom: 40px;
+}
+
+body {
+  user-select: none;
+  margin: 0;
+  font-family: 'ClashDisplay';
+}
+
 * {
   box-sizing: border-box;
   -webkit-font-smoothing: antialiased;

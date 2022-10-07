@@ -103,10 +103,8 @@ export default class RenderTargetDebugger extends AbstractObject<
 
   public tick() {
     if (this.object.visible && this.renderTarget) {
-      this.context.renderer.autoClear = false
       this.object.material.uniforms.uTexture.value = this.renderTarget.texture
       this.context.renderer.render(this.object, this.uselessCamera)
-      this.context.renderer.autoClear = true
     }
   }
 }

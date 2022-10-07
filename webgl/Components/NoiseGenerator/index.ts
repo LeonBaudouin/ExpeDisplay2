@@ -1,26 +1,34 @@
 import { WebGLAppContext } from '~~/webgl'
 import * as THREE from 'three'
 import fragmentShader from './index.frag'
+import voronoiShader from './voronoi.frag'
 import vertexShader from './index.vert'
 
 export default class NoiseGenerator {
   private context: WebGLAppContext
   private quad: THREE.Mesh
   private camera = new THREE.PerspectiveCamera()
-  private material: THREE.ShaderMaterial
+  private simplexMaterial: THREE.ShaderMaterial
+  private voronoiMaterial: THREE.ShaderMaterial
   private renderTargets = new Map<string, THREE.WebGLRenderTarget>()
 
   constructor(context: WebGLAppContext) {
     this.context = context
 
-    this.material = new THREE.ShaderMaterial({
+    this.simplexMaterial = new THREE.ShaderMaterial({
       uniforms: { uNoiseScale: { value: 4 }, uOctave: { value: 20 } },
       fragmentShader,
       vertexShader,
       depthTest: false,
     })
+    this.voronoiMaterial = new THREE.ShaderMaterial({
+      uniforms: { uNoiseScale: { value: 4 } },
+      fragmentShader: voronoiShader,
+      vertexShader,
+      depthTest: false,
+    })
 
-    this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.material)
+    this.quad = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), this.simplexMaterial)
     this.quad.renderOrder = -100
     this.quad.frustumCulled = false
   }
@@ -41,14 +49,23 @@ export default class NoiseGenerator {
       noiseScale = 4,
       octave = 20,
       force = true,
-    }: { size?: { x: number; y: number }; noiseScale?: number; octave?: number; force?: boolean } = {}
+      type = 'simplex',
+    }: {
+      size?: { x: number; y: number }
+      noiseScale?: number
+      octave?: number
+      force?: boolean
+      type?: 'simplex' | 'voronoi'
+    } = {}
   ) {
     const alreadyExist = this.renderTargets.has(id)
     const renderTarget = this.getRenderTarget(id)
     if (alreadyExist && !force) return renderTarget.texture
-    this.material.uniforms.uNoiseScale.value = noiseScale
-    this.material.uniforms.uOctave.value = octave
+    this.simplexMaterial.uniforms.uNoiseScale.value = noiseScale
+    this.voronoiMaterial.uniforms.uNoiseScale.value = noiseScale
+    this.simplexMaterial.uniforms.uOctave.value = octave
     renderTarget.setSize(size.x, size.y)
+    this.quad.material = type === 'simplex' ? this.simplexMaterial : this.voronoiMaterial
     const lastTarget = this.context.renderer.getRenderTarget()
     this.context.renderer.setRenderTarget(renderTarget)
     this.context.renderer.render(this.quad, this.camera)
