@@ -18,7 +18,9 @@ export default class Face extends AbstractObject<MainSceneContext> {
   private face: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
   private mouseTarget = new THREE.Vector3()
   private mouse = new THREE.Vector3()
-  public sun: THREE.Mesh
+  private sphereProxy: THREE.Object3D
+  private faceProxy: THREE.Object3D
+  public sun: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
 
   private params = reactive({
     // matcap: `${location.origin}/matcap.png`,
@@ -33,13 +35,53 @@ export default class Face extends AbstractObject<MainSceneContext> {
 
   constructor(context: MainSceneContext) {
     super(extendContext(context, { tweakpane: context.tweakpane.addFolder({ title: 'Face', expanded: false }) }))
-
-    const proxyMesh = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy') as THREE.Mesh
-    const proxy2 = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy_2') as THREE.Object3D
-    const proxyGeom = proxyMesh.geometry
     const mesh = this.context.ressources.gltf.face?.scene.children[0] as THREE.Mesh
-    const sun = new THREE.Mesh(
-      proxyGeom,
+    const proxyMesh = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy') as THREE.Mesh
+    const proxyGeom = proxyMesh.geometry
+
+    this.object = new THREE.Object3D()
+    copyMatrix(proxyMesh, this.object)
+    this.setupSun(proxyGeom)
+    this.setupFace(mesh.geometry)
+
+    this.sphereProxy = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy_2') as THREE.Object3D
+    this.faceProxy = new THREE.Mesh(proxyGeom)
+    this.faceProxy.visible = false
+    this.object.add(this.faceProxy)
+
+    this.setupHelper()
+    this.setupGui()
+
+    this.setupMouseInteraction()
+  }
+
+  public animIntro = () => {
+    const easing = bezier(0.12, 0, 0.15, 1)
+
+    const tl = gsap.timeline()
+    tl.set(this.params, { useMouse: 0 })
+    tl.fromTo(
+      this.params.sdf,
+      { w: 7.5, x: -5, y: 2 },
+      {
+        w: 0,
+        x: 1.8,
+        y: 3.35,
+        duration: 2.5,
+        ease: easing,
+      }
+    )
+    tl.to(this.params, {
+      useMouse: 1,
+      duration: 1,
+      delay: -0.8,
+    })
+    return tl
+  }
+
+  private setupSun(geom: THREE.BufferGeometry) {
+    this.sun = new THREE.Mesh(
+      geom,
       new THREE.ShaderMaterial({
         fragmentShader: proxyFragment,
         vertexShader: proxyVertex,
@@ -51,21 +93,16 @@ export default class Face extends AbstractObject<MainSceneContext> {
         },
       })
     )
-    reactiveUniforms(sun.material.uniforms, this.params, {
+    this.sun.scale.setScalar(0.99)
+    reactiveUniforms(this.sun.material.uniforms, this.params, {
       noise: noiseWatch(this.context, 'faceFadeNoise'),
     })
+    this.object.add(this.sun)
+  }
 
-    this.context.tweakpane.addInput(this.params, 'shineColor', { label: 'Shine Color' })
-
-    sun.scale.setScalar(0.99)
-    const faceProxy = new THREE.Mesh(proxyGeom)
-    faceProxy.visible = false
-    this.sun = sun
-
-    this.object = new THREE.Object3D()
-    copyMatrix(proxyMesh, this.object)
+  private setupFace(geom: THREE.BufferGeometry) {
     this.face = new THREE.Mesh(
-      mesh.geometry,
+      geom,
       new THREE.ShaderMaterial({
         fragmentShader,
         vertexShader,
@@ -79,77 +116,23 @@ export default class Face extends AbstractObject<MainSceneContext> {
         },
       })
     )
-
     reactiveUniforms(this.face.material.uniforms, this.params, {
       matcap: textureWatch,
       noise: noiseWatch(this.context, 'faceFadeNoise'),
     })
-
-    this.context.tweakpane.addInput(this.params, 'matcap', {
-      label: 'Matcap',
-      view: 'input-image',
-      imageFit: 'contain',
-    })
-    this.context.tweakpane.addInput(this.params, 'sdf', { label: 'Distance Field' })
-    this.context.tweakpane.addInput(this.params, 'debug', { label: 'Debug Field' })
-    const easing = bezier(0.12, 0, 0.15, 1)
-    const animIntro = () => {
-      const tl = gsap.timeline()
-      tl.set(this.params, { useMouse: 0 })
-      tl.fromTo(
-        this.params.sdf,
-        { w: 7.5, x: -5, y: 2 },
-        {
-          w: 0,
-          x: 1.8,
-          y: 3.35,
-          duration: 2.5,
-          ease: easing,
-        }
-      )
-      tl.to(this.params, {
-        useMouse: 1,
-        duration: 1,
-        delay: -0.8,
-      })
-    }
-    watch(
-      () => this.context.state.isReady,
-      (isReady) => {
-        if (!isReady) return
-        animIntro()
-      },
-      { immediate: true }
-    )
-
-    this.context.tweakpane.addButton({ title: 'Anim' }).on('click', animIntro)
-
-    addNoiseInput(this.context, this.params, 'noise', { title: 'Noise', expanded: false })
-
-    const helper = new THREE.Mesh(
-      new THREE.IcosahedronBufferGeometry(1, 2),
-      new THREE.MeshBasicMaterial({ color: 'black', fog: false, wireframe: true })
-    )
-    this.context.scene.scene.add(helper)
-    watchEffect(() => {
-      helper.position.set(this.params.sdf.x, this.params.sdf.y, this.params.sdf.z)
-      helper.scale.setScalar(this.params.sdf.w)
-      helper.visible = this.params.debug
-    })
-
     this.object.add(this.face)
-    this.object.add(this.sun)
-    this.object.add(faceProxy)
+  }
 
+  private setupMouseInteraction() {
     const raycaster = new THREE.Raycaster()
 
     const mat = new THREE.Matrix4()
     const tempVec1 = new THREE.Vector3()
 
-    const sphere = new THREE.Sphere(proxy2.position, proxy2.scale.x)
+    const sphere = new THREE.Sphere(this.sphereProxy.position, this.sphereProxy.scale.x)
     window.addEventListener('mousemove', (e) => {
       raycaster.setFromCamera(pixelToScreenCoords(e.clientX, e.clientY), this.context.scene.camera)
-      const [intersection] = raycaster.intersectObject(faceProxy)
+      const [intersection] = raycaster.intersectObject(this.faceProxy)
       if (intersection) {
         mat.copy(this.object.matrix).invert()
         intersection.point.applyMatrix4(mat)
@@ -160,6 +143,32 @@ export default class Face extends AbstractObject<MainSceneContext> {
       mat.copy(this.object.matrix).invert()
       tempVec1.applyMatrix4(mat)
       this.mouseTarget.copy(tempVec1)
+    })
+  }
+
+  private setupGui() {
+    this.context.tweakpane.addInput(this.params, 'shineColor', { label: 'Shine Color' })
+    this.context.tweakpane.addInput(this.params, 'matcap', {
+      label: 'Matcap',
+      view: 'input-image',
+      imageFit: 'contain',
+    })
+    this.context.tweakpane.addInput(this.params, 'sdf', { label: 'Distance Field' })
+    this.context.tweakpane.addInput(this.params, 'debug', { label: 'Debug Field' })
+    addNoiseInput(this.context, this.params, 'noise', { title: 'Noise', expanded: false })
+    this.context.tweakpane.addButton({ title: 'Anim' }).on('click', this.animIntro)
+  }
+
+  private setupHelper() {
+    const helper = new THREE.Mesh(
+      new THREE.IcosahedronBufferGeometry(1, 2),
+      new THREE.MeshBasicMaterial({ color: 'black', fog: false, wireframe: true })
+    )
+    this.context.scene.scene.add(helper)
+    watchEffect(() => {
+      helper.position.set(this.params.sdf.x, this.params.sdf.y, this.params.sdf.z)
+      helper.scale.setScalar(this.params.sdf.w)
+      helper.visible = this.params.debug
     })
   }
 

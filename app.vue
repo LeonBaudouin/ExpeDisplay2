@@ -1,5 +1,5 @@
 <template>
-  <div :style="{ '--vh': vh, display: showDom.value ? 'block' : 'none' }">
+  <div :style="{ '--vh': vh, visibility: showDom.value ? 'visible' : 'hidden' }">
     <NuxtLayout>
       <NuxtPage />
     </NuxtLayout>
@@ -63,7 +63,7 @@ useCleanup(() => {
 
 :root {
   // --color: rgb(200, 220, 240);
-  --color: #ffffff;
+  --color: #d0e1f3;
   --bodyFont: 'Satoshi-variable';
   --titleFont: 'ClashDisplay-variable';
   --marginTop: 8px;
@@ -72,7 +72,7 @@ useCleanup(() => {
 }
 
 body {
-  user-select: none;
+  // user-select: none;
   margin: 0;
   font-family: 'ClashDisplay';
 }

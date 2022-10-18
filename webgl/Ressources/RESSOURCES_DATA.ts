@@ -2,6 +2,7 @@ export default {
   gltf: {
     example: '/models/example.gltf',
     face: '/output.glb',
+    plane: '/output_plane.glb',
     scene: '/scene.glb',
   },
   textures: {

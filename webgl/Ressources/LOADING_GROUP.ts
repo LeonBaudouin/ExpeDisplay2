@@ -4,7 +4,7 @@ export default {
     textures: ['example'],
   },
   global: {
-    gltf: ['face', 'scene'],
+    gltf: ['face', 'scene', 'plane'],
     textures: [],
   },
 } as const

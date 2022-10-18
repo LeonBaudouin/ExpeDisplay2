@@ -48,6 +48,8 @@ export default class Dust extends AbstractObject<
       })
     )
 
+    this.object.frustumCulled = false
+
     // reactiveUniforms(this.object.material.uniforms, params, { noise: noiseWatch(this.context, 'dustNoise') })
     reactiveUniforms(this.object.material.uniforms, params)
   }

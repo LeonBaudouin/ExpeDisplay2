@@ -21,16 +21,23 @@ import {
   SMAAPreset,
 } from 'postprocessing'
 import NegativeEffect from './PostProcessing/NegativeEffect'
+import TextScene from './Scenes/TextScene'
+import { Font, FontLoader } from 'three/examples/jsm/loaders/FontLoader'
+import PostProcessing from './PostProcessing'
+import AnimationManager from './AnimationManager'
 
 type Scenes = {
   main: MainScene | null
+  text: TextScene | null
 }
 type NuxtApp = ReturnType<typeof useNuxtApp> & { $router: ReturnType<typeof useRouter> }
+export type TextRect = { x: number; y: number; scale: number }
+
 export default class WebGL extends LifeCycle {
   public renderer: THREE.WebGLRenderer
 
   public ressources: Ressources
-  private postProcessing: EffectComposer
+  public postProcessing: PostProcessing
   private usePostprocessing: boolean = true
 
   private stats: Stats | null
@@ -44,13 +51,13 @@ export default class WebGL extends LifeCycle {
     pixelRatio: 1,
     screenSize: new THREE.Vector2(),
     averageDelta: 0.016,
+    textRects: {} as Record<string, TextRect>,
   })
   private nuxtApp: NuxtApp
   private renderTargetDebugger: RenderTargetDebugger
   private noiseGenerator: NoiseGenerator
-  private globalUniforms = {
-    uBloom: { value: 0 },
-  }
+  private animationManager: AnimationManager
+  private globalUniforms = {}
   public context = createContext({
     clock: () => this.clock,
     renderer: () => this.renderer,
@@ -74,10 +81,20 @@ export default class WebGL extends LifeCycle {
     this.ressources = new Ressources(this.renderer)
     this.renderTargetDebugger = new RenderTargetDebugger(this.context)
     this.noiseGenerator = new NoiseGenerator(this.context)
+    this.animationManager = new AnimationManager(this)
 
+    this.tweakpane.addInput(this as any, 'usePostprocessing')
     this.setupClock()
     this.setupScenes()
-    this.setupPostProcessing()
+
+    watch(
+      () => this.ressources.progress.global == 1,
+      (isLoaded) => {
+        if (!isLoaded) return
+        this.postProcessing = new PostProcessing(this.context, this.scenes)
+      },
+      { immediate: true }
+    )
 
     this.currentScene =
       Object.keys(this.scenes!).indexOf(this.nuxtApp.$params.scene || '') > -1
@@ -101,10 +118,23 @@ export default class WebGL extends LifeCycle {
     const tabs = this.tweakpane.addTab({ pages: [{ title: 'Main' }] })
 
     const mainPage = tabs.pages[0]
+    const textPage = tabs.addPage({ title: 'Text' })
 
     this.scenes = {
       main: null,
+      text: null,
     }
+
+    const fontLoader = new FontLoader()
+    const load = (url: string) => new Promise<Font>((res) => fontLoader.load(url, res))
+    Promise.all([load('/msdf/ClashDisplay/ClashDisplay-Bold.json'), load('/msdf/Satoshi/Satoshi-Light.json')]).then(
+      ([titleFont, bodyFont]) => {
+        this.scenes.text = new TextScene(extendContext(this.context, { tweakpane: textPage }), {
+          bodyFont,
+          titleFont,
+        })
+      }
+    )
 
     watch(
       () => this.ressources.progress.global == 1,
@@ -138,6 +168,7 @@ export default class WebGL extends LifeCycle {
     }
     setStateSize()
     watch(() => this.state.pixelRatio, setStateSize)
+    window.addEventListener('resize', setStateSize)
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
@@ -156,69 +187,6 @@ export default class WebGL extends LifeCycle {
     })
   }
 
-  private setupPostProcessing() {
-    this.postProcessing = new EffectComposer(this.renderer)
-
-    watchEffect(() => {
-      this.postProcessing.setSize(this.state.pixelSize.x, this.state.pixelSize.y)
-    })
-
-    const postProcessing = this.tweakpane.addFolder({ title: 'Post Processing', index: 0, expanded: false })
-    postProcessing.addInput(this as any, 'usePostprocessing')
-
-    watch(
-      () => this.ressources.progress.global == 1,
-      (loaded) => {
-        if (!loaded) return
-
-        const renderScene = new RenderPass(this.scenes.main!.scene, this.scenes.main!.camera)
-        this.postProcessing.addPass(renderScene)
-
-        const smaaEffect = new SMAAEffect({
-          // preset: SMAAPreset.HIGH,
-          edgeDetectionMode: EdgeDetectionMode.LUMA,
-        })
-
-        const negativeEffect = new NegativeEffect(this.context)
-
-        const godRaysEffect = new GodRaysEffect(
-          this.scenes.main!.camera,
-          this.scenes.main!.face!.sun,
-          // this.scenes.main!.test,
-          {
-            kernelSize: KernelSize.MEDIUM,
-            height: 480,
-            decay: 0.77,
-            density: 0.8,
-            weight: 1.22,
-            exposure: 0.7,
-            samples: 60,
-            clampMax: 1.0,
-          }
-          // {
-          //   kernelSize: KernelSize.VERY_SMALL,
-          //   height: 240,
-          //   decay: 0.81,
-          //   density: 0.18,
-          //   weight: 3.32,
-          //   exposure: 0.16,
-          //   samples: 15,
-          //   clampMax: 1.0,
-          // }
-        )
-
-        postProcessing.addInput(godRaysEffect.godRaysMaterial, 'decay')
-        postProcessing.addInput(godRaysEffect.godRaysMaterial, 'density')
-        postProcessing.addInput(godRaysEffect.godRaysMaterial, 'weight')
-        postProcessing.addInput(godRaysEffect.godRaysMaterial, 'exposure')
-
-        this.postProcessing.addPass(new EffectPass(this.scenes.main!.camera, smaaEffect, godRaysEffect, negativeEffect))
-        // this.postProcessing.addPass(new EffectPass(this.scenes.main!.camera, godRaysEffect, negativeEffect))
-        // this.postProcessing.addPass(new EffectPass(this.scenes.main!.camera, negativeEffect))
-      }
-    )
-  }
-
   public tick() {
     this.stats?.update()
 
@@ -232,20 +200,9 @@ export default class WebGL extends LifeCycle {
 
     this.stats?.beforeRender()
     if (currentScene) {
-      if (this.usePostprocessing) {
-        const renderPass = this.postProcessing.passes[0] as any
-        renderPass.camera = currentScene.camera
-        renderPass.scene = currentScene.scene
-        // const bloomPass = this.postProcessing.passes[1] as any
-        // bloomPass.camera = currentScene.camera
-        // bloomPass.scene = currentScene.scene
-        // bloomPass.effects[1].camera = currentScene.camera
-        // bloomPass.effects[1].blurPass.camera = currentScene.camera
-        // bloomPass.effects[1].depthMaskPass.camera = currentScene.camera
-        // bloomPass.effects[1].godRaysPass.camera = currentScene.camera
-        // bloomPass.effects[1].renderPassLight.camera = currentScene.camera
-
-        this.postProcessing.render(deltaTime)
+      if (this.usePostprocessing && this.postProcessing) {
+        this.postProcessing.setCurrentScene(currentScene)
+        this.postProcessing.tick(elapsedTime, deltaTime)
       } else {
         this.renderer.render(currentScene.scene, currentScene.camera)
       }

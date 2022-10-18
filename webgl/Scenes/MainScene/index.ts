@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader'
 import { WebGLAppContext } from '~/webgl'
 import AbstractScene from '~~/webgl/abstract/AbstractScene'
 import { extendContext } from '~~/webgl/abstract/Context'
@@ -10,19 +11,20 @@ import Face from '~~/webgl/Components/Face'
 import Ground from '~~/webgl/Components/Ground'
 import Light, { LightParams } from '~~/webgl/Components/Light'
 import MainTitle from '~~/webgl/Components/MainTitle'
+import MSDFTextGeometry from '~~/webgl/libs/MSDFTextGeometry'
+import MSDFTextMaterial from '~~/webgl/Components/SlidingText'
+import AbstractObject from '~~/webgl/abstract/AbstractObject'
+import AnimatedCamera from '~~/webgl/Components/Camera/AnimatedCamera'
 
 export type MainSceneContext = WebGLAppContext & { scene: MainScene }
 
 export default class MainScene extends AbstractScene<WebGLAppContext, THREE.PerspectiveCamera> {
   private debugCamera: DebugCamera
-  private mainCamera: RotationCamera
+  public mainCamera: AnimatedCamera
 
   private lights: Light[]
   private dust: Dust
   public face?: Face
-  public test: THREE.Mesh
-
-  private sceneState = reactive({})
 
   protected declare context: MainSceneContext
 
@@ -34,7 +36,6 @@ export default class MainScene extends AbstractScene<WebGLAppContext, THREE.Pers
     super(extendContext(context, { scene: () => this }))
 
     this.scene = new THREE.Scene()
-    // this.scene.background = new THREE.Color(0x181818).convertSRGBToLinear()
     const param = { color: '#2f1e0c' }
     this.scene.background = new THREE.Color(param.color)
     const fog = new THREE.FogExp2(param.color, 0.08)
@@ -47,34 +48,26 @@ export default class MainScene extends AbstractScene<WebGLAppContext, THREE.Pers
     })
     fogFolder.addInput(fog, 'density')
 
-    // const defPos = new THREE.Vector3(-1.5406782749974997, 0.39232675732562555, 13.3464533630925)
-    // const defRotation = new THREE.Euler(-0.05352377193980043, 0.13456646772957442, 0.007187528533985277)
-    // const target = new THREE.Vector3(-3.2719234256248573, -0.2917872685609845, 0.5771623666098459)
+    const target = this.context.ressources.gltf.scene?.cameras
+      .find((o) => o.name === 'target_Orientation')!
+      .getWorldPosition(new THREE.Vector3())!
 
-    const cam = this.context.ressources.gltf.scene?.cameras[0]!
-    const defPos = cam.getWorldPosition(new THREE.Vector3())
-    const defRotation = new THREE.Euler().setFromQuaternion(cam.getWorldQuaternion(new THREE.Quaternion()))
-    const target = this.context.ressources.gltf.scene?.cameras[1]!.getWorldPosition(new THREE.Vector3())!
-
-    // const target = new THREE.Vector3(-2.2085442543029785, -0.045475073158741, 3.5347142219543457)
-    this.debugCamera = new DebugCamera(this.context, { defaultPosition: defPos, defaultRotation: defRotation })
-    this.mainCamera = new RotationCamera(this.context, {
-      defaultPosition: defPos,
-      defaultRotation: defRotation,
-      target,
+    this.debugCamera = new DebugCamera(this.context, {
+      defaultPosition: new THREE.Vector3(0, 0, 15),
+      defaultRotation: new THREE.Euler(),
     })
-    this.debugCamera.controls.target.copy(target)
+    this.mainCamera = new AnimatedCamera(this.context, this.context.ressources.gltf.scene!, {
+      target: target,
+    })
 
     this.scene.add(this.debugCamera.object)
     this.scene.add(this.mainCamera.object)
 
-    this.camera = this.params.debugCam ? this.debugCamera.object : this.mainCamera.object
+    this.camera = this.params.debugCam ? this.debugCamera.object : this.mainCamera.camera
 
     this.context.tweakpane
       .addInput(this.params, 'debugCam', { label: 'Debug Cam' })
-      .on('change', ({ value }) => (this.camera = value ? this.debugCamera.object : this.mainCamera.object))
-
-    // this.context.tweakpane.addInput(this.debugCamera.controls, 'enabled', { label: 'Debug Cam' })
+      .on('change', ({ value }) => (this.camera = value ? this.debugCamera.object : this.mainCamera.camera))
 
     this.setObjects()
   }

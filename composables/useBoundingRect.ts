@@ -6,11 +6,17 @@ export default function useBoundingRect() {
   const boundingRect = ref<DOMRect>()
 
   useCleanup(() => {
-    const observer = new ResizeObserver(() => {
+    const onObserve = () => {
       boundingRect.value = element.value?.getBoundingClientRect()
-    })
+    }
+    window.addEventListener('resize', onObserve)
+    const observer = new ResizeObserver(onObserve)
     observer.observe(element.value!)
-    return () => observer.disconnect()
+    onObserve()
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', onObserve)
+    }
   })
 
   return tuple(element, boundingRect)

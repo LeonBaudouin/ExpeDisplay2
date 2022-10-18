@@ -1,6 +1,6 @@
 import WebGL from '~~/webgl'
 
-export default defineNuxtPlugin((nuxtApp) => {
+export default defineNuxtPlugin<{ webgl: WebGL }>((nuxtApp) => {
   let webgl
   try {
     webgl = new WebGL(nuxtApp)

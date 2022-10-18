@@ -1,77 +1,60 @@
 <template>
-  <div class="home">
-    <div class="home__top">
-      <div class="title__wrapper">
-        <FitText>
-          <h1 class="top__title">Experiments</h1>
-        </FitText>
-      </div>
-      <h2 class="top__subtitle">Some ideas that popped into my <span class="italic">head</span></h2>
+  <div>
+    <div class="home">
+      <h1 class="home__title" ref="title">Experiments</h1>
+      <h2 class="home__subtitle" ref="subtitle">Some ideas that popped into my head</h2>
     </div>
-    <div class="home__bottom">
-      <NuxtLink class="bottom__link link" to="#" @mouseenter="hover = true" @mouseleave="hover = false">
-        <ArrowButton class="link__arrow" :hover="hover" />
-        <span class="link__text">Dive in</span>
-      </NuxtLink>
-    </div>
+    <div class="name" :class="{ 'name--show': show }">Léon Baudouin</div>
   </div>
 </template>
 
 <script setup lang="ts">
-const hover = ref(false)
+const title = useTextRect('title')
+const subtitle = useTextRect('subtitle')
+
+const { $webgl } = useNuxtApp()
+const show = computed(() => $webgl?.state.isReady)
 </script>
 
 <style lang="scss" scoped>
 .home {
-  &__bottom {
-    position: absolute;
-    bottom: var(--marginBottom);
-  }
-}
-.title__wrapper {
-  margin: 0 -8px;
-  visibility: hidden;
-}
-.top {
+  color: white;
+  position: absolute;
+  top: 50vh;
+  transform: translateY(-50%);
+  margin-left: 3.5vw;
   &__title {
-    margin: 0;
     font-family: var(--titleFont);
-    font-weight: 700;
+    font-weight: 800;
     text-transform: uppercase;
-    text-align: center;
-    line-height: 0.8;
-    color: var(--color);
-    // visibility: hidden;
-  }
-
-  &__subtitle {
-    // font-family: var(--bodyFont);
-    font-family: var(--titleFont);
-    font-weight: 200;
-    color: var(--color);
-    font-size: 36px;
     margin: 0;
-    letter-spacing: 1.5px;
-    line-height: 1;
+    line-height: 0.8;
+    font-size: 7.5vw;
+    visibility: hidden;
+  }
+  &__subtitle {
+    font-family: var(--bodyFont);
+    font-weight: 200;
+    margin: 0;
+    line-height: 0.8;
+    text-align: center;
+    font-size: 1.75vw;
+    visibility: hidden;
   }
 }
 
-.link {
-  &__arrow {
-    position: relative;
-    top: 4px;
-    height: 57px;
-    width: 57px;
-    --buttonColor: var(--color);
-  }
+.name {
+  position: absolute;
+  bottom: 40px;
+  left: 50vw;
+  transform: translateX(-50%);
+  font-weight: 400;
+  color: #d0e1f3;
+  opacity: 0;
+  transition: opacity 0.5s 4.2s;
 
-  &__text {
-    font-family: var(--titleFont);
-    font-size: 80px;
-    line-height: 0.8;
-    color: var(--color);
-    margin: 0 0 0 20px;
-    font-weight: 800;
+  &--show {
+    opacity: 1;
   }
 }
 </style>
