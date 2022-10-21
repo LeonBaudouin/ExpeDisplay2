@@ -81,7 +81,7 @@ export default class WebGL extends LifeCycle {
     this.ressources = new Ressources(this.renderer)
     this.renderTargetDebugger = new RenderTargetDebugger(this.context)
     this.noiseGenerator = new NoiseGenerator(this.context)
-    this.animationManager = new AnimationManager(this)
+    this.animationManager = new AnimationManager(this.context, this)
 
     this.tweakpane.addInput(this as any, 'usePostprocessing')
     this.setupClock()

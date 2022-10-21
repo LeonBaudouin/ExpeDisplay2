@@ -14,6 +14,9 @@ import vertexShader from './index.vert'
 import proxyFragment from './proxy.frag'
 import proxyVertex from './proxy.vert'
 
+export type FaceData = ReturnType<typeof Face['DEFAULT_PARAMS']>
+export type FaceParams = Partial<FaceData>
+
 export default class Face extends AbstractObject<MainSceneContext> {
   private face: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
   private mouseTarget = new THREE.Vector3()
@@ -21,30 +24,42 @@ export default class Face extends AbstractObject<MainSceneContext> {
   private sphereProxy: THREE.Object3D
   private faceProxy: THREE.Object3D
   public sun: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>
+  private flippedSun: boolean
 
-  private params = reactive({
-    // matcap: `${location.origin}/matcap.png`,
-    shineColor: '#ffd39a',
-    matcap: `${location.origin}/36220C_C6C391_8C844A_8B7B4C.jpg`,
-    sdf: { x: -3.3, y: 3.35, z: 0.5, w: 7 },
-    debug: false,
-    noise: { size: { x: 512, y: 512 }, noiseScale: 4, octave: 2 },
-    useMouse: 0,
-    // matcap: 'https://github.com/nidorx/matcaps/blob/master/thumbnail/36220C_C6C391_8C844A_8B7B4C.jpg',
-  })
+  public static DEFAULT_PARAMS = () =>
+    reactive({
+      // matcap: `${location.origin}/matcap.png`,
+      shineColor: '#ffd39a',
+      matcap: `${location.origin}/36220C_C6C391_8C844A_8B7B4C.jpg`,
+      sdf: { x: -3.3, y: 3.35, z: 0.5, w: 7 },
+      debug: false,
+      noise: { size: { x: 512, y: 512 }, noiseScale: 4, octave: 2 },
+      useMouse: 0,
+      fadeSun: true,
+      // matcap: 'https://github.com/nidorx/matcaps/blob/master/thumbnail/36220C_C6C391_8C844A_8B7B4C.jpg',
+    })
 
-  constructor(context: MainSceneContext) {
+  public data: FaceData
+
+  constructor(
+    context: MainSceneContext,
+    params: FaceParams,
+    { mesh, proxy, flippedSun }: { mesh: THREE.Mesh; proxy: THREE.Mesh; flippedSun: boolean }
+  ) {
     super(extendContext(context, { tweakpane: context.tweakpane.addFolder({ title: 'Face', expanded: false }) }))
-    const mesh = this.context.ressources.gltf.face?.scene.children[0] as THREE.Mesh
-    const proxyMesh = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy') as THREE.Mesh
-    const proxyGeom = proxyMesh.geometry
+
+    Object.assign(params, { ...Face.DEFAULT_PARAMS(), ...params })
+    this.data = (isReactive(params) ? params : reactive(params)) as FaceData
+
+    const proxyGeom = proxy.geometry
+    this.flippedSun = flippedSun
 
     this.object = new THREE.Object3D()
-    copyMatrix(proxyMesh, this.object)
+    copyMatrix(proxy, this.object)
     this.setupSun(proxyGeom)
     this.setupFace(mesh.geometry)
 
-    this.sphereProxy = this.context.ressources.gltf.scene?.scene.getObjectByName('proxy_2') as THREE.Object3D
+    this.sphereProxy = this.context.ressources.gltf.scene?.scene.getObjectByName('sphere_proxy') as THREE.Object3D
     this.faceProxy = new THREE.Mesh(proxyGeom)
     this.faceProxy.visible = false
     this.object.add(this.faceProxy)
@@ -55,46 +70,23 @@ export default class Face extends AbstractObject<MainSceneContext> {
     this.setupMouseInteraction()
   }
 
-  public animIntro = () => {
-    const easing = bezier(0.12, 0, 0.15, 1)
-
-    const tl = gsap.timeline()
-    tl.set(this.params, { useMouse: 0 })
-    tl.fromTo(
-      this.params.sdf,
-      { w: 7.5, x: -5, y: 2 },
-      {
-        w: 0,
-        x: 1.8,
-        y: 3.35,
-        duration: 2.5,
-        ease: easing,
-      }
-    )
-    tl.to(this.params, {
-      useMouse: 1,
-      duration: 1,
-      delay: -0.8,
-    })
-    return tl
-  }
-
   private setupSun(geom: THREE.BufferGeometry) {
     this.sun = new THREE.Mesh(
       geom,
       new THREE.ShaderMaterial({
         fragmentShader: proxyFragment,
         vertexShader: proxyVertex,
-        side: THREE.BackSide,
+        side: this.flippedSun ? THREE.BackSide : THREE.FrontSide,
         uniforms: {
           uShineColor: { value: new THREE.Color() },
           uSdf: { value: new THREE.Vector4() },
           uNoise: { value: null },
+          uFadeSun: { value: false },
         },
       })
     )
     this.sun.scale.setScalar(0.99)
-    reactiveUniforms(this.sun.material.uniforms, this.params, {
+    reactiveUniforms(this.sun.material.uniforms, this.data, {
       noise: noiseWatch(this.context, 'faceFadeNoise'),
     })
     this.object.add(this.sun)
@@ -116,7 +108,7 @@ export default class Face extends AbstractObject<MainSceneContext> {
         },
       })
     )
-    reactiveUniforms(this.face.material.uniforms, this.params, {
+    reactiveUniforms(this.face.material.uniforms, this.data, {
       matcap: textureWatch,
       noise: noiseWatch(this.context, 'faceFadeNoise'),
     })
@@ -144,19 +136,34 @@ export default class Face extends AbstractObject<MainSceneContext> {
       tempVec1.applyMatrix4(mat)
       this.mouseTarget.copy(tempVec1)
     })
+
+    // window.addEventListener('click', (e) => {
+    //   raycaster.setFromCamera(pixelToScreenCoords(e.clientX, e.clientY), this.context.scene.camera)
+    //   const [intersection] = raycaster.intersectObject(this.faceProxy)
+    //   if (intersection) this.animClick(intersection.point)
+    // })
   }
 
+  // public animClick(p: THREE.Vector3) {
+  //   this.data.sdf.x = p.x
+  //   this.data.sdf.y = p.y
+  //   this.data.sdf.z = p.z
+  //   gsap.to(this.data, { useMouse: 0, duration: 0.3 })
+  //   gsap.to(this.data.sdf, { w: 4, duration: 1.4, ease: 'Power2.easeOut' })
+  // }
+
   private setupGui() {
-    this.context.tweakpane.addInput(this.params, 'shineColor', { label: 'Shine Color' })
-    this.context.tweakpane.addInput(this.params, 'matcap', {
+    this.context.tweakpane.addInput(this.data, 'shineColor', { label: 'Shine Color' })
+    this.context.tweakpane.addInput(this.data, 'matcap', {
       label: 'Matcap',
       view: 'input-image',
       imageFit: 'contain',
     })
-    this.context.tweakpane.addInput(this.params, 'sdf', { label: 'Distance Field' })
-    this.context.tweakpane.addInput(this.params, 'debug', { label: 'Debug Field' })
-    addNoiseInput(this.context, this.params, 'noise', { title: 'Noise', expanded: false })
-    this.context.tweakpane.addButton({ title: 'Anim' }).on('click', this.animIntro)
+    this.context.tweakpane.addInput(this.data, 'sdf', { label: 'Distance Field' })
+    this.context.tweakpane.addInput(this.data, 'useMouse', { label: 'Use Mouse', min: 0, max: 1 })
+    this.context.tweakpane.addInput(this.data, 'debug', { label: 'Debug Field' })
+    this.context.tweakpane.addInput(this.data, 'fadeSun', { label: 'Fade Sun' })
+    addNoiseInput(this.context, this.data, 'noise', { title: 'Noise', expanded: false })
   }
 
   private setupHelper() {
@@ -166,9 +173,9 @@ export default class Face extends AbstractObject<MainSceneContext> {
     )
     this.context.scene.scene.add(helper)
     watchEffect(() => {
-      helper.position.set(this.params.sdf.x, this.params.sdf.y, this.params.sdf.z)
-      helper.scale.setScalar(this.params.sdf.w)
-      helper.visible = this.params.debug
+      helper.position.set(this.data.sdf.x, this.data.sdf.y, this.data.sdf.z)
+      helper.scale.setScalar(this.data.sdf.w)
+      helper.visible = this.data.debug
     })
   }
 

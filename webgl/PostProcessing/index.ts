@@ -16,7 +16,7 @@ export default class PostProcessing extends AbstractComponent {
   private composer: EffectComposer
   private scenes: WebGL['scenes']
   public negativeEffect: NegativeEffect
-  private godRaysEffect: GodRaysEffect
+  public godRaysEffect: GodRaysEffect
   private SMAAEffect: SMAAEffect
   private renderTarget: THREE.WebGLRenderTarget
 
@@ -51,6 +51,8 @@ export default class PostProcessing extends AbstractComponent {
     })
 
     this.negativeEffect = new NegativeEffect()
+
+    this.context.tweakpane.addInput(this.negativeEffect.data, 'luminosity', { min: 0, max: 1 })
 
     this.godRaysEffect = new GodRaysEffect(
       this.scenes.main!.camera,
@@ -93,9 +95,11 @@ export default class PostProcessing extends AbstractComponent {
   }
 
   public setCurrentScene(currentScene: { scene: THREE.Scene; camera: THREE.Camera }) {
-    const renderPass = this.composer.passes[0] as any
-    renderPass.camera = currentScene.camera
-    renderPass.scene = currentScene.scene
+    // const renderPass = this.composer.passes[0] as any
+    // renderPass.camera = currentScene.camera
+    // renderPass.scene = currentScene.scene
+    this.composer.setMainCamera(currentScene.camera)
+    this.composer.setMainScene(currentScene.scene)
   }
 
   public tick(time: number, delta: number): void {

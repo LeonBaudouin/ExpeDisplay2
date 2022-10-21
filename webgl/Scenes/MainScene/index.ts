@@ -11,10 +11,9 @@ import Face from '~~/webgl/Components/Face'
 import Ground from '~~/webgl/Components/Ground'
 import Light, { LightParams } from '~~/webgl/Components/Light'
 import MainTitle from '~~/webgl/Components/MainTitle'
-import MSDFTextGeometry from '~~/webgl/libs/MSDFTextGeometry'
-import MSDFTextMaterial from '~~/webgl/Components/SlidingText'
-import AbstractObject from '~~/webgl/abstract/AbstractObject'
 import AnimatedCamera from '~~/webgl/Components/Camera/AnimatedCamera'
+import bezier from 'bezier-easing'
+import gsap from 'gsap'
 
 export type MainSceneContext = WebGLAppContext & { scene: MainScene }
 
@@ -66,7 +65,7 @@ export default class MainScene extends AbstractScene<WebGLAppContext, THREE.Pers
     this.camera = this.params.debugCam ? this.debugCamera.object : this.mainCamera.camera
 
     this.context.tweakpane
-      .addInput(this.params, 'debugCam', { label: 'Debug Cam' })
+      .addInput(this.params, 'debugCam', { label: 'Debug Cam', index: 0 })
       .on('change', ({ value }) => (this.camera = value ? this.debugCamera.object : this.mainCamera.camera))
 
     this.setObjects()
@@ -145,7 +144,16 @@ export default class MainScene extends AbstractScene<WebGLAppContext, THREE.Pers
     this.dust = new Dust(this.context)
     this.scene.add(this.dust.object)
 
-    this.face = new Face(this.context)
+    this.face = new Face(
+      this.context,
+      {},
+      {
+        mesh: this.context.ressources.gltf.face?.scene.children[0] as THREE.Mesh,
+        proxy: this.context.ressources.gltf.scene?.scene.getObjectByName('face_proxy') as THREE.Mesh,
+        flippedSun: true,
+      }
+    )
+    this.face.object.visible = false
     this.scene.add(this.face.object)
 
     const ground = new Ground(this.context)
@@ -159,6 +167,32 @@ export default class MainScene extends AbstractScene<WebGLAppContext, THREE.Pers
     // this.test = new THREE.Mesh(new THREE.IcosahedronBufferGeometry(), new THREE.MeshBasicMaterial({ color: '#ffffff' }))
     // this.scene.add(this.test)
     // msdf-bmfont --reuse -o ../atlas.png -m 512,256 -s 42 -r 3 -p 1 -t msdf ./ClashDisplay-Bold.ttf
+  }
+
+  public animFace = () => {
+    const data = this.face!.data
+    const easing = bezier(0.12, 0, 0.15, 1)
+
+    const tl = gsap.timeline()
+    tl.call(() => void (this.face!.object.visible = true))
+    tl.set(data, { useMouse: 0 })
+    tl.fromTo(
+      data.sdf,
+      { w: 7.5, x: -5, y: 2 },
+      {
+        w: 0,
+        x: 1.8,
+        y: 3.35,
+        duration: 2.5,
+        ease: easing,
+      }
+    )
+    tl.to(data, {
+      useMouse: 1,
+      duration: 1,
+      delay: -0.8,
+    })
+    return tl
   }
 
   public tick(time: number, delta: number): void {

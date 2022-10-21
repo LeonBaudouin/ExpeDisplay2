@@ -2,13 +2,13 @@ import gsap from 'gsap'
 import { Effect } from 'postprocessing'
 import * as THREE from 'three'
 import reactiveUniforms from '~~/utils/uniforms/reactiveUniforms'
-import { WebGLAppContext } from '~~/webgl'
 import fragmentShader from './index.frag'
 
 export default class NegativeEffect extends Effect {
   public data = reactive({
     backgroundColor: '#1c1106',
     fade: 1,
+    luminosity: 0,
   })
 
   constructor() {
@@ -17,6 +17,7 @@ export default class NegativeEffect extends Effect {
         ['uTexture', new THREE.Uniform(null)],
         ['uBackgroundColor', new THREE.Uniform(new THREE.Color())],
         ['uFade', new THREE.Uniform(0)],
+        ['uLuminosity', new THREE.Uniform(0)],
       ]),
     })
 
